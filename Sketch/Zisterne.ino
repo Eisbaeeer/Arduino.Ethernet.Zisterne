@@ -30,7 +30,7 @@
   Author:       Ethernet part: W.A. Smith, http://startingelectronics.com
                 progress bar -  CC BY-SA 3.0 :  skywodd, https://www.carnetdumaker.net/articles/faire-une-barre-de-progression-avec-arduino-et-liquidcrystal/
 				
-  LICENSE: 		CC BY-SA 3.0
+  LICENSE: 		MIT License
   
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
 // Include some libraries
