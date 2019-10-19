@@ -13,16 +13,20 @@ Diese sind am Anfang des Codes.
 
 - Volumen der Zisterne    
 - Dichte des Mediums   
+- Analog Wert der Kalibrierung
 - IP-Adresse des MQTT Servers   
 - IP-Adresse des Nano (falls kein DHCP zur Verfügung steht)   
 - MAC-Adresse des Nano   
 
 ## Changelog
 
+### 1.2
+- (20191019 Eisbaeeer)   
+- LCD wechselt jetzt alle 30 Sek. zwischen Uptime und Analog Messwert   
+
 ### 1.1
 - (20191019 Eisbaeeer)   
 - Dichte Berechnung hinzugefügt   
-- Prüfung auf max. Liter in der Anzeige nur bei Wasser
 
 ### 1.0
 - (Eisbaeeer)

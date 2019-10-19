@@ -28,7 +28,8 @@
                 20191019
                 Version 1.1
                 - Dichte Berechnung hinzugefügt
-                - Prüfung auf max. Liter in der Anzeige nur bei Wasser (Bei Heizöl ausgeschaltet)
+                Version 1.2
+                - LCD wechselt jetzt alle 30 Sek. zwischen Uptime und Analog Messwert
 
   Author:       Eisbaeeer, https://github.com/Eisbaeeer               
  
@@ -56,18 +57,32 @@ const int LCD_NB_COLUMNS = 16;
 
 
 
-// ###############################################################
+// ##############################################################################################################################
 // ---- HIER die Anpassungen vornehmen ----
-const float max_liter = 6300;                           // Maximale Füllmenge des Behälters
-const float dichte = 1.0;                               // Dichte der Flüssigkeit - Bei Heizöl bitte "1.086" eintragen | Bei Wasser bitte "1.0" eintragen
-IPAddress mqttserver(192, 168, 1, 200);                 // IP Adresse des MQTT Servers
-IPAddress ip(192, 168, 1, 21);                          // IP Adresse, falls kein DHCP vorhanden ist
-byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x0A };    // MAC-Addresse bitte anpassen
+// ##############################################################################################################################
+// Hier die maximale Füllmenge des Behälters angeben. Dies gilt nur für symmetrische Behälter.
+const float max_liter = 6300;                           
 
-// ###############################################################
+// Analoger Wert bei maximalem Füllstand (wird alle 30 Sekungen auf dem LCD angezeigt oder in der seriellen Konsole mit 9600 Baud.
+const int analog_value = 763;                           
+
+// Dichte der Flüssigkeit - Bei Heizöl bitte "0.86" eintragen, aber nur wenn die Kalibrierung mit Wasser erfolgt ist! 
+// Bei Kalibrierung mit Wasser bitte "1.0" eintragen
+const float dichte = 0.68;                              
+
+// IP Adresse des MQTT Servers
+IPAddress mqttserver(192, 168, 1, 200);                 
+
+// IP Adresse, falls kein DHCP vorhanden ist. Diese Adresse wird nur verwendet, wenn der DHCP-Server nicht erreichbar ist.
+IPAddress ip(192, 168, 1, 21);                          
+
+// MAC-Addresse bitte anpassen! Sollte auf dem Netzwerkmodul stehen. Ansonsten eine generieren.
+byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x0A };    
+
+// ##############################################################################################################################
 // AB hier nichts mehr ändern!
 // (Ausser ihr wisst, was ihr tut)
-// ###############################################################
+// ##############################################################################################################################
 
 #define USE_SERIAL Serial
 
@@ -90,6 +105,7 @@ unsigned int uptime_d;
 
 float percent;
 float liter;
+boolean LCD_Page;
 
 // Analog IN
 int analogPin = A0;
@@ -139,9 +155,10 @@ void setup()
   // Print a message to the LCD
   lcd.print("Zisterne");
   lcd.setCursor(0, 1);
-  lcd.print("Version 1.1");
+  lcd.print("Version 1.2");
   lcd.setCursor(0, 3);
   lcd.print("github/Eisbaeeer");
+  delay(2000);
   uptime_d = 0;
 
   setup_progressbar();
@@ -180,12 +197,7 @@ void setup()
 
 void loop()
 {
-
-  // MQTT subroutines
-  MqttSub();
-  // Check of incoming connections on a MQTT subscription
-  //  client.loop();
-
+ 
 /*--------------------------------------------------------------  
  * check ehternet services
 --------------------------------------------------------------*/
@@ -262,15 +274,12 @@ void loop()
       if (percent > 100) {
          percent = 100;
       }
-    float calc = max_liter / 763;     // calculate percent
-    liter = fuel * calc;              // calculate liter
-    liter = liter * dichte;           // calculate dichte
-      if (dichte == 1.0) 
-      {
+    float calc = max_liter / analog_value;    // calculate percent
+          calc = calc * dichte;               // calculate dichte
+    liter = fuel * calc;                      // calculate liter
         if (liter > max_liter) {
            liter = max_liter;
         }
-      }
     USE_SERIAL.print(F("Analog: "));
     USE_SERIAL.println(fuel);
     USE_SERIAL.print(F("Prozent: "));
@@ -282,6 +291,18 @@ void loop()
     draw_progressbar(percent);
     write_lcd();
          
+   /******************************************************************************************
+   *  30 Sekunden Takt 
+   * *****************************************************************************************
+   *  
+   *  
+   *******************************************************************************************/
+   if ((millis()) >= (last_time + send_interval * 1000)) {
+        last_time = millis(); 
+
+        LCD_Page = !LCD_Page;
+        MqttSub();
+      }
   
   /******************************************************************************************
    *  1 Minuten Takt 
@@ -319,7 +340,7 @@ void loop()
 
       USE_SERIAL.println(F("ONE HOUR"));
       } 
-
+      
   }
 
   
@@ -353,10 +374,7 @@ void MqttSub(void)
          }
           // If connection is active, then sends the data to the server with the specified time interval 
           } else {
-            if ((millis()) >= (last_time + send_interval * 1000)) {
-            last_time = millis();
-            Mqttpublish();
-            }
+            Mqttpublish(); 
           }
     }
 }
@@ -369,20 +387,32 @@ void write_lcd(void)
     dtostrf(liter, 4, 0, buff);
     lcd.print(buff); lcd.print(" Liter");
     
-    // Zeile 3
-    lcd.setCursor(0, 2); 
-    lcd.print("Uptime");
+    if ( LCD_Page == false ) {
+              // Zeile 3
+              lcd.setCursor(0, 2); 
+              lcd.print("Uptime");
 
-    // Zeile 4
-    lcd.setCursor(0, 3);
-      String uptimesum;
-      uptimesum = String(uptime_d);
-      uptimesum = String(uptimesum + "d ");
-      uptimesum = String(uptimesum + uptime_h);
-      uptimesum = String(uptimesum + "h ");
-      uptimesum = String(uptimesum + uptime_m);
-      uptimesum = String(uptimesum + "m");
-      lcd.print(uptimesum);    
+              // Zeile 4
+              lcd.setCursor(0, 3);
+              String uptimesum;
+              uptimesum = String(uptime_d);
+              uptimesum = String(uptimesum + "d ");
+              uptimesum = String(uptimesum + uptime_h);
+              uptimesum = String(uptimesum + "h ");
+              uptimesum = String(uptimesum + uptime_m);
+              uptimesum = String(uptimesum + "m");
+              lcd.print(uptimesum);    
+    } else {
+              // Zeile 3
+              lcd.setCursor(0, 2); 
+              lcd.print("Messwert Analog");
+
+              // Zeile 4
+              lcd.setCursor(0, 3);
+              lcd.print(analogRead(analogPin));    
+              
+    }
+ 
  }
 
 void Mqttpublish(void)
