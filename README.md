@@ -11,7 +11,8 @@ Die Meßdaten werden per MQTT an einen Server übertragen und auf dem Display an
 In der ino Datei müssen noch entsprechende Anpassungen gemacht werden.
 Diese sind am Anfang des Codes.
 
-- Volumen der Zisterne   
+- Volumen der Zisterne    
+- Dichte des Mediums   
 - IP-Adresse des MQTT Servers   
 - IP-Adresse des Nano (falls kein DHCP zur Verfügung steht)   
 - MAC-Adresse des Nano   
