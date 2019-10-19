@@ -28,7 +28,6 @@
                 20191019
                 Version 1.1
                 - Dichte Berechnung hinzugefügt
-                - Umbenennung Zisterne --> Tank
                 - Prüfung auf max. Liter in der Anzeige nur bei Wasser (Bei Heizöl ausgeschaltet)
 
   Author:       Eisbaeeer, https://github.com/Eisbaeeer               
@@ -389,13 +388,13 @@ void write_lcd(void)
 void Mqttpublish(void)
 {  
       dtostrf(fuel, 5, 2, buff);
-      client.publish("Tank/Analog", buff );
+      client.publish("Zisterne/Analog", buff );
 
       dtostrf(liter, 5, 0, buff);
-      client.publish("Tank/Liter", buff );
+      client.publish("Zisterne/Liter", buff );
 
       dtostrf(percent, 5, 0, buff);
-      client.publish("Tank/Prozent", buff );
+      client.publish("Zisterne/Prozent", buff );
     
       // System    
       String uptimesum = String(uptime_d + "d ");
