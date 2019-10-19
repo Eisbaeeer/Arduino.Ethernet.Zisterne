@@ -1,5 +1,5 @@
 /*------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  Program:      Zisterne
+  Program:      Füllstandsmessung mit Pegelsonde
 
   Description:  Dieses Programm misst die analolge Spannung an einem Port, welche von einem Drucksensor
                 0-5m Meßhöhe und 4-20mA Stromschnittstelle erzeugt wird.
@@ -24,6 +24,12 @@
 
                 20191017
                 Fixed uptime_d
+
+                20191019
+                Version 1.1
+                - Dichte Berechnung hinzugefügt
+                - Umbenennung Zisterne --> Tank
+                - Prüfung auf max. Liter in der Anzeige nur bei Wasser (Bei Heizöl ausgeschaltet)
 
   Author:       Eisbaeeer, https://github.com/Eisbaeeer               
  
@@ -53,7 +59,8 @@ const int LCD_NB_COLUMNS = 16;
 
 // ###############################################################
 // ---- HIER die Anpassungen vornehmen ----
-const float max_liter = 6300;                           // Maximale Füllmenge der Zisterne
+const float max_liter = 6300;                           // Maximale Füllmenge des Behälters
+const float dichte = 1.0;                               // Dichte der Flüssigkeit - Bei Heizöl bitte "1.086" eintragen | Bei Wasser bitte "1.0" eintragen
 IPAddress mqttserver(192, 168, 1, 200);                 // IP Adresse des MQTT Servers
 IPAddress ip(192, 168, 1, 21);                          // IP Adresse, falls kein DHCP vorhanden ist
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x0A };    // MAC-Addresse bitte anpassen
@@ -133,7 +140,9 @@ void setup()
   // Print a message to the LCD
   lcd.print("Zisterne");
   lcd.setCursor(0, 1);
-  lcd.print("Version 1.0   ");
+  lcd.print("Version 1.1");
+  lcd.setCursor(0, 3);
+  lcd.print("github/Eisbaeeer");
   uptime_d = 0;
 
   setup_progressbar();
@@ -249,15 +258,19 @@ void loop()
         
 
     // read the analog value
-    fuel = analogRead(analogPin);  // read the input pin
+    fuel = analogRead(analogPin);     // read the input pin
     percent = fuel * 0.132;
       if (percent > 100) {
          percent = 100;
       }
-    float calc = max_liter / 763;  
-    liter = fuel * calc;
-      if (liter > max_liter) {
-         liter = max_liter;
+    float calc = max_liter / 763;     // calculate percent
+    liter = fuel * calc;              // calculate liter
+    liter = liter * dichte;           // calculate dichte
+      if (dichte == 1.0) 
+      {
+        if (liter > max_liter) {
+           liter = max_liter;
+        }
       }
     USE_SERIAL.print(F("Analog: "));
     USE_SERIAL.println(fuel);
@@ -376,13 +389,13 @@ void write_lcd(void)
 void Mqttpublish(void)
 {  
       dtostrf(fuel, 5, 2, buff);
-      client.publish("Zisterne/Analog", buff );
+      client.publish("Tank/Analog", buff );
 
       dtostrf(liter, 5, 0, buff);
-      client.publish("Zisterne/Liter", buff );
+      client.publish("Tank/Liter", buff );
 
       dtostrf(percent, 5, 0, buff);
-      client.publish("Zisterne/Prozent", buff );
+      client.publish("Tank/Prozent", buff );
     
       // System    
       String uptimesum = String(uptime_d + "d ");
