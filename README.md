@@ -18,7 +18,12 @@ Diese sind am Anfang des Codes.
 
 ## Changelog
 
-### 1.0.0
+### 1.1
+- (20191019 Eisbaeeer)   
+- Dichte Berechnung hinzugefügt   
+- Prüfung auf max. Liter in der Anzeige nur bei Wasser
+
+### 1.0
 - (Eisbaeeer)
 Initial Version
 
