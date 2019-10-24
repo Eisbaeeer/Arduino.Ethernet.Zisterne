@@ -23,13 +23,16 @@
                 - DHCP error routine
 
                 20191017
-                Fixed uptime_d
+                - Fixed uptime_d
 
                 20191019
                 Version 1.1
                 - Dichte Berechnung hinzugefügt
                 Version 1.2
                 - LCD wechselt jetzt alle 30 Sek. zwischen Uptime und Analog Messwert
+
+                20191024
+                - Fixed MQTT uptime_d char array
 
   Author:       Eisbaeeer, https://github.com/Eisbaeeer               
  
@@ -101,7 +104,7 @@ byte one_day_count = 0;
 byte uptime_s = 0;
 byte uptime_m = 0;
 byte uptime_h = 0;
-unsigned int uptime_d;
+int uptime_d;
 
 float percent;
 float liter;
@@ -117,7 +120,6 @@ unsigned int send_interval = 30; // the sending interval of indications to the s
 unsigned long last_time = 0; // the current time for the timer
 
 boolean mqttReconnect = false;
-char buff[20];
 
 // MQTT definitions
 EthernetClient ethClient;
@@ -381,11 +383,11 @@ void MqttSub(void)
 
 void write_lcd(void)
 {
-
+    char LCDbuff[20];
     // Zeile 1
     lcd.setCursor(6, 0); 
-    dtostrf(liter, 4, 0, buff);
-    lcd.print(buff); lcd.print(" Liter");
+    dtostrf(liter, 4, 0, LCDbuff);
+    lcd.print(LCDbuff); lcd.print(" Liter");
     
     if ( LCD_Page == false ) {
               // Zeile 3
@@ -417,6 +419,7 @@ void write_lcd(void)
 
 void Mqttpublish(void)
 {  
+      char buff[25];
       dtostrf(fuel, 5, 2, buff);
       client.publish("Zisterne/Analog", buff );
 
@@ -427,12 +430,14 @@ void Mqttpublish(void)
       client.publish("Zisterne/Prozent", buff );
     
       // System    
-      String uptimesum = String(uptime_d + "d ");
-      uptimesum = String(uptimesum + uptime_h);
-      uptimesum = String(uptimesum + "h ");
-      uptimesum = String(uptimesum + uptime_m);
-      uptimesum = String(uptimesum + "m");
-      uptimesum.toCharArray(buff, 15);
+      String upsum;
+      upsum = String(uptime_d);
+      upsum = String(upsum + "d ");
+      upsum = String(upsum + uptime_h);
+      upsum = String(upsum + "h ");
+      upsum = String(upsum + uptime_m);
+      upsum = String(upsum + "m");
+      upsum.toCharArray(buff, 25);
       client.publish("Zisterne/Uptime", buff); 
 }
 

@@ -23,6 +23,8 @@ Diese sind am Anfang des Codes.
 ### 1.2
 - (20191019 Eisbaeeer)   
 - LCD wechselt jetzt alle 30 Sek. zwischen Uptime und Analog Messwert   
+- (20191024 Eisbaeeer)
+- Fixed update_d in MQTT
 
 ### 1.1
 - (20191019 Eisbaeeer)   
