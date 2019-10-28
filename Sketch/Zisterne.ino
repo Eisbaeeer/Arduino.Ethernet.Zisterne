@@ -34,6 +34,11 @@
                 20191024
                 - Fixed MQTT uptime_d char array
 
+                20191028
+                Version 1.3
+                - MQTT Port definierbar
+                - MQTT User Password authentication
+
   Author:       Eisbaeeer, https://github.com/Eisbaeeer               
  
   Author:       Ethernet part: W.A. Smith, http://startingelectronics.com
@@ -73,8 +78,13 @@ const int analog_value = 763;
 // Bei Kalibrierung mit Wasser bitte "1.0" eintragen
 const float dichte = 0.68;                              
 
-// IP Adresse des MQTT Servers
-IPAddress mqttserver(192, 168, 1, 200);                 
+// IP Adresse und Port des MQTT Servers
+IPAddress mqttserver(192, 168, 1, 200);
+const int mqttport = 1883;
+// Wenn der MQTT Server eine Authentifizierung verlangt, bitte folgende Zeile aktivieren und Benutzer / Passwort eintragen
+#define mqttauth
+const char* mqttuser = "MQTT ID ";
+const char* mqttpass = "MQTTPASS";                 
 
 // IP Adresse, falls kein DHCP vorhanden ist. Diese Adresse wird nur verwendet, wenn der DHCP-Server nicht erreichbar ist.
 IPAddress ip(192, 168, 1, 21);                          
@@ -157,7 +167,7 @@ void setup()
   // Print a message to the LCD
   lcd.print("Zisterne");
   lcd.setCursor(0, 1);
-  lcd.print("Version 1.2");
+  lcd.print("Version 1.3");
   lcd.setCursor(0, 3);
   lcd.print("github/Eisbaeeer");
   delay(2000);
@@ -172,7 +182,7 @@ void setup()
 
 
 // start MQTT client
-  client.setServer(mqttserver, 1883);
+  client.setServer(mqttserver, mqttport);
 
   Mqttpublish();
 
@@ -363,7 +373,11 @@ void MqttSub(void)
     if (!client.connected()) {
         USE_SERIAL.print(F("Conn MQTT"));
          // Connect and publish / subscribe
+        #ifdef mqttauth
+         if (client.connect("Zisterne", mqttuser, mqttpass)) {
+        #else
          if (client.connect("Zisterne")) {
+        #endif
             USE_SERIAL.println(F("succ"));
             // pulish values
             Mqttpublish();

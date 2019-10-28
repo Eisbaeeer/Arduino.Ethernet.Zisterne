@@ -20,6 +20,11 @@ Diese sind am Anfang des Codes.
 
 ## Changelog
 
+### 1.3
+- (20191028 Eisbaeeer)   
+- MQTT Port ist jetzt konfigurierbar
+- MQTT Authentifizierung 
+
 ### 1.2
 - (20191019 Eisbaeeer)   
 - LCD wechselt jetzt alle 30 Sek. zwischen Uptime und Analog Messwert   
