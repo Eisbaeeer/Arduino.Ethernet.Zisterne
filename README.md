@@ -24,7 +24,8 @@ Diese sind am Anfang des Codes.
 ## Verschaltung der Module
 Ich verwende Standard Module, welche über das Internet verfügbar sind. Die Klemmblöcke habe ich ausgelötet und durch Stifte erstetzt.
 Als Basis verwende ich eine Lochraster Platine. Damit sind alle Baugruppen schnell ersetzbar.
-Grundsätzlich ist im Sketch schon beschrieben, welche Ports verwendung finden. Ich habe als Hilfestellung meine Verdrahtung hinzugefügt.
+Grundsätzlich ist im Sketch schon beschrieben, welche Ports verwendung finden. Ich habe als Hilfestellung meine Verdrahtung hinzugefügt.   
+
 ![Logo](Pics/Schaltplan.jpg)
 
 ## Abgleich
@@ -35,7 +36,8 @@ Bitte erst ganz durchlesen!
 4. Pegelsonde anschließen   
 5. Linker Poti stellt Nullpunkt ein. Dazu mit Multimeter an hellblau (mittlerer Pin vom Wandlermodul) auf 0V einstellen. Es kann auch ein negativer Wert angezeigt werden. Das Poti macht locker 20 Umdrehungen, bis es von min auf max geht.   
 6. Rechter Poti stellt dann den Range ein. Minimum ist bei Tank leer, maximum bei Tank voll (maximum darf 3.3V nicht übersteigen!   
-
+7. Jetzt darf erst das Nano Modul mit dem Ethernetshield aufgesteckt werden. Bitte jedes Modul nur dann aufstecken, wenn die Schaltung spannungsfrei ist. Also erst ausschalten, dann aufstecken.   
+8. Eventuell im Sketch noch den maximalen analogen Wert anpassen, falls der nicht stimmt. Der Meßwert wird auf der seriellen Konsole ausgegeben oder an der LCD angezeigt. (Hinweis: man benötigt nicht unbedingt eine LCD Anzeige).   
 
 
 ## Changelog
