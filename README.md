@@ -42,6 +42,10 @@ Bitte erst ganz durchlesen!
 
 ## Changelog
 
+### 1.4
+- (20200110 Eisbaeeer)   
+- Array zur Beruhigung des Messwertes hinzugfügt   
+
 ### 1.3
 - (20191028 Eisbaeeer)   
 - MQTT Port ist jetzt konfigurierbar
