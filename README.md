@@ -15,8 +15,30 @@ Diese sind am Anfang des Codes.
 - Dichte des Mediums   
 - Analog Wert der Kalibrierung
 - IP-Adresse des MQTT Servers   
+- Port des MQTT Servers   
+- MQTT Benutzername   
+- MQTT Passwort   
 - IP-Adresse des Nano (falls kein DHCP zur Verfügung steht)   
 - MAC-Adresse des Nano   
+
+## Verschaltung der Module
+Ich verwende Standard Module, welche über das Internet verfügbar sind. Die Klemmblöcke habe ich ausgelötet und durch Stifte erstetzt.
+Als Basis verwende ich eine Lochraster Platine. Damit sind alle Baugruppen schnell ersetzbar.
+Grundsätzlich ist im Sketch schon beschrieben, welche Ports verwendung finden. Ich habe als Hilfestellung meine Verdrahtung hinzugefügt.   
+
+![Logo](Pics/Schaltplan.jpg)
+
+## Abgleich
+Bitte erst ganz durchlesen!
+1. Aufstecken der ersten Baugruppe (Step-up Wandler, Modul ganz unten) und anlegen der 5V Eingangsspannung. Mit Multimeter an VOUT+ und VOUT- messen und mit dem Poti maximal 24V einstellen.   
+2. Spannung an den Schraubklemmen Drucksensor messen. Max. 24V (je nach Sonde. Bitte Datenblatt der Sonde lesen)   
+3. Wandlermodul aufstecken (oberes Modul unterhalb der Platine mit den 2 blauen Potis) und die Jumper J1 und J2 abziehen.   
+4. Pegelsonde anschließen   
+5. Linker Poti stellt Nullpunkt ein. Dazu mit Multimeter an hellblau (mittlerer Pin vom Wandlermodul) auf 0V einstellen. Es kann auch ein negativer Wert angezeigt werden. Das Poti macht locker 20 Umdrehungen, bis es von min auf max geht.   
+6. Rechter Poti stellt dann den Range ein. Minimum ist bei Tank leer, maximum bei Tank voll (maximum darf 3.3V nicht übersteigen!   
+7. Jetzt darf erst das Nano Modul mit dem Ethernetshield aufgesteckt werden. Bitte jedes Modul nur dann aufstecken, wenn die Schaltung spannungsfrei ist. Also erst ausschalten, dann aufstecken.   
+8. Eventuell im Sketch noch den maximalen analogen Wert anpassen, falls der nicht stimmt. Der Meßwert wird auf der seriellen Konsole ausgegeben oder an der LCD angezeigt. (Hinweis: man benötigt nicht unbedingt eine LCD Anzeige).   
+
 
 ## Changelog
 
