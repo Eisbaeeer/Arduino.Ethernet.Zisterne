@@ -38,6 +38,10 @@
                 Version 1.3
                 - MQTT Port definierbar
                 - MQTT User Password authentication
+				
+				20200110
+				Version 1.4
+				- Array für die Beruhigung des Messwertes eingefügt
 
   Author:       Eisbaeeer, https://github.com/Eisbaeeer               
  
@@ -74,9 +78,9 @@ const float max_liter = 6300;
 // Analoger Wert bei maximalem Füllstand (wird alle 30 Sekungen auf dem LCD angezeigt oder in der seriellen Konsole mit 9600 Baud.
 const int analog_value = 763;                           
 
-// Dichte der Flüssigkeit - Bei Heizöl bitte "0.86" eintragen, aber nur wenn die Kalibrierung mit Wasser erfolgt ist! 
+// Dichte der Flüssigkeit - Bei Heizöl bitte "1.086" eintragen, aber nur wenn die Kalibrierung mit Wasser erfolgt ist! 
 // Bei Kalibrierung mit Wasser bitte "1.0" eintragen
-const float dichte = 0.68;                              
+const float dichte = 1.0;                              
 
 // IP Adresse und Port des MQTT Servers
 IPAddress mqttserver(192, 168, 1, 200);
@@ -122,7 +126,10 @@ boolean LCD_Page;
 
 // Analog IN
 int analogPin = A0;
-int fuel = 0;  // variable to store the analog value read
+const int messungen = 60;     // Anzahl Messungen
+int myArray[messungen];       // Array für Messwerte
+float fuel = 0.0;             // Durchschnittswert
+int pointer = 0;              // Pointer für Messung
 
 // MQTT global vars
 #include <PubSubClient.h>
@@ -167,7 +174,7 @@ void setup()
   // Print a message to the LCD
   lcd.print("Zisterne");
   lcd.setCursor(0, 1);
-  lcd.print("Version 1.3");
+  lcd.print("Version 1.4");
   lcd.setCursor(0, 3);
   lcd.print("github/Eisbaeeer");
   delay(2000);
@@ -280,8 +287,23 @@ void loop()
         }
         
 
-    // read the analog value
-    fuel = analogRead(analogPin);     // read the input pin
+    // read the analog value and build floating middle
+    myArray[pointer] = analogRead(analogPin);      // read the input pin
+    
+    if ( pointer > messungen ) {
+      pointer = 0;
+    } else {
+      pointer++;  
+    }
+
+    // Werte aufaddieren
+    for (int i = 0; i < messungen; i++)
+      {
+       fuel = fuel + myArray[i];
+      }
+    // Summe durch Anzahl
+       fuel = fuel / messungen;
+
     percent = fuel * 0.132;
       if (percent > 100) {
          percent = 100;
