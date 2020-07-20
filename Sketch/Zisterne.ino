@@ -43,10 +43,17 @@
 				Version 1.4
 				- Array für die Beruhigung des Messwertes eingefügt
 
+        20200528 (ltathome)
+        Version 1.5
+        - Erweiterung MQTT für die Steuerung eines Relais für die Frischwasser Nachspeisung bzw. Umschaltung
+        - Grenzwerte über MQTT einstellbar
+        - Umschaltung Betriebsart über Taster Pin2 möglich
+
   Author:       Eisbaeeer, https://github.com/Eisbaeeer               
  
   Author:       Ethernet part: W.A. Smith, http://startingelectronics.com
                 progress bar -  CC BY-SA 3.0 :  skywodd, https://www.carnetdumaker.net/articles/faire-une-barre-de-progression-avec-arduino-et-liquidcrystal/
+                ltathome fixes + parameter level switch
 				
   LICENSE: 		MIT License
   
@@ -76,7 +83,7 @@ const int LCD_NB_COLUMNS = 16;
 const float max_liter = 6300;                           
 
 // Analoger Wert bei maximalem Füllstand (wird alle 30 Sekungen auf dem LCD angezeigt oder in der seriellen Konsole mit 9600 Baud.
-const int analog_value = 763;                           
+const int analog_max = 763;                           
 
 // Dichte der Flüssigkeit - Bei Heizöl bitte "1.086" eintragen, aber nur wenn die Kalibrierung mit Wasser erfolgt ist! 
 // Bei Kalibrierung mit Wasser bitte "1.0" eintragen
@@ -101,56 +108,129 @@ byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x0A };
 // (Ausser ihr wisst, was ihr tut)
 // ##############################################################################################################################
 
+char buf[40];
+#define MODE_PIN 2
+#define MODE_ZISTERNE 0
+#define MODE_HAUSWASSER 1
+#define MODE_AUTO 2
+#define MODE_COUNT 10
+bool setmode = false;
+const char *modes[] = {"Zisterne", "Hauswasser", "Auto"};
+int mode_count = MODE_COUNT;
+int mode = MODE_AUTO;
+int old_mode = MODE_AUTO;
+int pin_stat;
+int old_stat;
+
+#define VALVE_PIN 3
+#define VALVE_ZISTERNE LOW
+#define VALVE_HAUSWASSER HIGH
+int valve = VALVE_ZISTERNE;
+int new_valve = VALVE_ZISTERNE;
+int reason = 0;
+const char *valves[] = {"Zisterne", "Hauswasser"};
+const char *reasons[] = {"manuelle Steuerung", "Automatik voll", "Automatik leer"};
+ 
 #define USE_SERIAL Serial
 
 // No more delay
 unsigned long startMillis;  // some global variables available anywhere in the program
+unsigned long hstartMillis;  // some global variables available anywhere in the program
 unsigned long currentMillis;
-const unsigned long periode = 1000;  // one seconds
+const unsigned long sekunde = 1000;  // one seconds
 
-byte one_minute = 60; // one minute
-byte one_minute_count = 0;
-byte one_hour = 60; // one hour
-byte one_hour_count = 0;
-byte one_day = 24; // one day
-byte one_day_count = 0;
+unsigned long pinMillis;
+unsigned long lastMillis = 0;
 
-byte uptime_s = 0;
-byte uptime_m = 0;
-byte uptime_h = 0;
-int uptime_d;
+int secs = 0, mins = 0, hours = 0, days = 0;
+char uptime[25];
 
 float percent;
 float liter;
+float limit_low = 500;
+float limit_high = 1000;
 boolean LCD_Page;
 
 // Analog IN
 int analogPin = A0;
 const int messungen = 60;     // Anzahl Messungen
 int myArray[messungen];       // Array für Messwerte
-float fuel = 0.0;             // Durchschnittswert
+float analog = 0.0;             // Durchschnittswert
 int pointer = 0;              // Pointer für Messung
 
 // MQTT global vars
 #include <PubSubClient.h>
-unsigned int send_interval = 30; // the sending interval of indications to the server, by default 10 seconds
-unsigned long last_time = 0; // the current time for the timer
+unsigned int send_interval = 10; // the sending interval of indications to the server, by default 10 seconds
+#define MQTT_KEEPALIVE 60;
 
-boolean mqttReconnect = false;
+boolean mqttconnected = false;
 
 // MQTT definitions
+void MqttCallback(char *topic, byte *payload, unsigned int length);
 EthernetClient ethClient;
-PubSubClient client(ethClient);
-void callback(char * topic, byte * payload, unsigned int length);
+PubSubClient mqttclient;
+#define MQTT_ID "Zisterne"
+char pl[30];
+
 // Declare subs
 void Mqttpublish();
 
-
-
-void defaultEthernet(void)
-  {
+void defaultEthernet(void) {
     Ethernet.begin(mac, ip);  // initialize Ethernet device
+}
+
+void Uptime() {
+    secs++;
+    secs = secs % 60;
+    if (secs == 0) {
+        mins++;
+        mins = mins % 60;
+        if (mins == 0) {
+            hours++;
+            hours = hours % 24;
+            if (hours == 0) {
+                days++;
+                days = days % 10000;   // Nach 9999 Tagen zurück auf 0 (das sind 27 Jahre....)
+            }
+        }
+    }
+    sprintf(uptime, "%4dd %2dh %2dm", days, hours, mins);
+  
+    if (secs == 0) {        // Every Minute
+        //USE_SERIAL.print(F("Uptime: "));
+        //USE_SERIAL.println(uptime);
+        // MQTT reconnect timeout
+        //Mqttpublish();
+    }
+    if (secs % send_interval == 0) { // Alle 30 Sekunden
+        LCD_Page = !LCD_Page;
+        Mqttpublish();
+        // MqttSub();
+    }
+    if (mins == 0 && secs == 0) {      // Jede Stunde
+        //USE_SERIAL.println(F("ONE HOUR"));
+    }
+}
+
+void ReadAnalog() {
+    // read the analog value and build floating middle
+    myArray[pointer++] = analogRead(analogPin);      // read the input pin
+    // myArray[pointer++] = 352;
+ 
+    pointer = pointer % messungen;
+
+    // Werte aufaddieren
+    for (int i = 0; i < messungen; i++) {
+        analog = analog + myArray[i];
   }
+    // Summe durch Anzahl - geglättet
+    analog = analog / messungen;
+ 
+    percent = min(100 * analog / analog_max, 100);
+    float calc = max_liter / analog_max;      // calculate percent
+    calc = calc * dichte;                     // calculate dichte
+    liter = min(analog * calc, max_liter);    // calculate liter
+}
 
 
 void setup()
@@ -174,24 +254,16 @@ void setup()
   // Print a message to the LCD
   lcd.print("Zisterne");
   lcd.setCursor(0, 1);
-  lcd.print("Version 1.4");
+  lcd.print("Version 1.5");
   lcd.setCursor(0, 3);
   lcd.print("github/Eisbaeeer");
   delay(2000);
-  uptime_d = 0;
-
   setup_progressbar();
 
 /*--------------------------------------------------------------  
  * Milliseconds start
 --------------------------------------------------------------*/
   startMillis = millis();  //initial start time
-
-
-// start MQTT client
-  client.setServer(mqttserver, mqttport);
-
-  Mqttpublish();
 
 /*--------------------------------------------------------------  
  * Ethernet init
@@ -207,59 +279,148 @@ void setup()
       }
     }
  
-    USE_SERIAL.print(F("IP: "));
-    USE_SERIAL.println(Ethernet.localIP());       
+    //USE_SERIAL.print(F("IP: "));
+    //USE_SERIAL.println(Ethernet.localIP());    
+
+     // start MQTT client
+    MqttConnect(mqttuser, mqttpass);  
+
+    /*-------------------------------------------------------------------
+     * Setup Pins for Valve and mode-setting
+     */
+    pinMode(MODE_PIN, INPUT_PULLUP);
+    pinMode(VALVE_PIN, OUTPUT);
+  
+    pin_stat = old_stat = digitalRead(MODE_PIN);
 }
 
+void MqttConnect(char *user, char* pass) {
 
+    mqttclient.setClient(ethClient);
+    mqttclient.setServer(mqttserver, mqttport);
+    mqttclient.setCallback(MqttCallback);
+    
+    mqttconnected = mqttclient.connect(MQTT_ID, user, pass);
+    if (mqttconnected) {
+        // USE_SERIAL.println("Connected to Mqtt-Server");
+        mqttclient.subscribe("Zisterne/cmnd/Mode");
+        mqttclient.subscribe("Zisterne/cmnd/Limit");
+        mqttclient.subscribe("Zisterne/Mode");
+        // USE_SERIAL.println("subscribing to Zisterne/cmnd/Mode");
+    }
+}
 
+void MqttCallback(char *topic, byte *payload, unsigned int length) {
+    char *payloadvalue;
+    char *payloadkey;
 
-void loop()
-{
- 
+    payload[length] = '\0';
+    payloadkey = (char *)&payload[0];
+
+    // USE_SERIAL.println(payloadstring);
+    if (strcmp(topic, "Zisterne/cmnd/Mode") == 0 || strcmp(topic, "Zisterne/Mode") == 0) {
+        if (strcmp(payloadkey, "0") == 0 || strcmp(payloadkey, "Zisterne") == 0) {
+            mode = MODE_ZISTERNE;
+        } else if (strcmp(payloadkey, "1") == 0 || strcmp(payloadkey, "Hauswasser") == 0) {
+            mode = MODE_HAUSWASSER;
+        } else if (strcmp(payloadkey, "2") == 0 || strcmp(payloadkey, "Auto") == 0) {
+            mode = MODE_AUTO;
+        }
+    } else if (strcmp(topic, "Zisterne/cmnd/Limit") == 0) {
+        int eq = 0;
+        for (int i = 0; i < length; i++) {
+            if (payload[i] == '=') {
+                eq = i;
+                break;
+            }
+        }
+        if (eq > 0) {
+            payload[eq++] = 0;
+            payloadvalue = (char *)&payload[eq];
+            if (strcmp((char *)payload, "Low") == 0 || strcmp((char *)payload, "low") == 0) {
+                limit_low = atoi(payloadvalue);
+            }
+            if (strcmp((char *)payload, "High") == 0 || strcmp((char *)payload, "high") == 0) {
+                limit_high = atoi(payloadvalue);
+            }
+        }
+    }
+}
+
+void CheckEthernet() {
 /*--------------------------------------------------------------  
  * check ehternet services
 --------------------------------------------------------------*/
     switch (Ethernet.maintain()) {
       case 1:
        //renewed fail
-       USE_SERIAL.println(F("Error: renewed fail"));
+       //USE_SERIAL.println(F("Error: renewed fail"));
        break;
 
       case 2:
         //renewed success
-       USE_SERIAL.println(F("Renewed success"));
+       //USE_SERIAL.println(F("Renewed success"));
        //print your local IP address:
-       USE_SERIAL.print(F("My IP address: "));
-       USE_SERIAL.println(Ethernet.localIP());
+       //USE_SERIAL.print(F("My IP address: "));
+       //USE_SERIAL.println(Ethernet.localIP());
        break;
 
       case 3:
        //rebind fail
-       USE_SERIAL.println(F("Error: rebind fail"));
+       //USE_SERIAL.println(F("Error: rebind fail"));
        break;
 
       case 4:
        //rebind success
-       USE_SERIAL.println(F("Rebind success"));
+       //USE_SERIAL.println(F("Rebind success"));
        //print your local IP address:
-       USE_SERIAL.print(F("My IP address: "));
-       USE_SERIAL.println(Ethernet.localIP());
+       //USE_SERIAL.print(F("My IP address: "));
+       //USE_SERIAL.println(Ethernet.localIP());
        break;
 
       default:
        //nothing happened
        break;
   }
- 
- 
+}
+
+
+
+void loop()
+{
+    /*--------------------------------------------------------------
+     remove delay (half second)
+     --------------------------------------------------------------*/
   
+    pin_stat = digitalRead(MODE_PIN);
+    pinMillis = millis();
+    if (pin_stat == LOW) {
+        if (pinMillis - lastMillis > 200) {
+            //USE_SERIAL.println("Impuls Low");
+            lastMillis = pinMillis;
+            mode_count = MODE_COUNT;
+            if (!setmode) {
+                setmode = true;
+                old_mode = mode;
+                //sprintf(buf, "Enter Settings-Mode %d (%s)", mode, modes[mode]);
+                //USE_SERIAL.println(buf);
+            } else {
+                mode--;
+                if (mode < 0) {
+                    mode = 2;
+                }
+                //sprintf(buf, "Mode change to %d (%s)", mode, modes[mode]);
+                //USE_SERIAL.println(buf);
+            }
+        }
+    }
+
 /*--------------------------------------------------------------  
  * remove delay (one second)
 --------------------------------------------------------------*/
   currentMillis = millis();  //get the current "time" (actually the number of milliseconds since the program started)
-  if (currentMillis - startMillis >= periode)  // Hier eine Sekunde (periode)
-  { 
+    if (currentMillis - startMillis >= sekunde) { // Hier eine Sekunde warten
+        mqttclient.loop();
   startMillis = currentMillis;
 
     /******************************************************************************************
@@ -272,112 +433,56 @@ void loop()
     // Hier die Funktionen im Sekundentakt
     // ###################################    
                  
-     uptime_s++;
-     if (uptime_s >59)
-        { uptime_s = 0; 
-          uptime_m ++;
+        CheckEthernet();
+        Uptime();
+        ReadAnalog();
+        
+        if (setmode) {
+            mode_count--;
+            if (mode_count <= 0) {
+                //sprintf(buf, "leaving Settings-Mode - change from %d to %d (%s)", old_mode, mode, modes[mode]);
+                //USE_SERIAL.println(buf);
+                old_mode = mode;
+                setmode = false;
+            }
         }
-     if (uptime_m >59)
-        { uptime_m = 0; 
-          uptime_h ++;
-        }
-     if (uptime_h >23)
-        { uptime_h = 0; 
-          uptime_d ++;
+        if (!setmode) {
+            if (mode == MODE_ZISTERNE) {
+                new_valve = VALVE_ZISTERNE;
+                reason = 0;
+            } else if (mode == MODE_HAUSWASSER) {
+                new_valve = VALVE_HAUSWASSER;
+                reason = 0;
+            } else if (mode == MODE_AUTO) {
+                if (liter >= limit_high) {
+                    new_valve = VALVE_ZISTERNE;
+                    reason = 1;
+                }
+                if (liter <= limit_low) {
+                    new_valve = VALVE_HAUSWASSER;
+                    reason = 2;
         }
         
-
-    // read the analog value and build floating middle
-    myArray[pointer] = analogRead(analogPin);      // read the input pin
-    
-    if ( pointer > messungen ) {
-      pointer = 0;
-    } else {
-      pointer++;  
+  
     }
 
-    // Werte aufaddieren
-    for (int i = 0; i < messungen; i++)
-      {
-       fuel = fuel + myArray[i];
-      }
-    // Summe durch Anzahl
-       fuel = fuel / messungen;
-
-    percent = fuel * 0.132;
-      if (percent > 100) {
-         percent = 100;
-      }
-    float calc = max_liter / analog_value;    // calculate percent
-          calc = calc * dichte;               // calculate dichte
-    liter = fuel * calc;                      // calculate liter
-        if (liter > max_liter) {
-           liter = max_liter;
-        }
-    USE_SERIAL.print(F("Analog: "));
-    USE_SERIAL.println(fuel);
-    USE_SERIAL.print(F("Prozent: "));
-    USE_SERIAL.println(percent);
-    USE_SERIAL.print(F("Liter: "));
-    USE_SERIAL.println(liter);
-
-    // print out to LCD
-    draw_progressbar(percent);
-    write_lcd();
-         
-   /******************************************************************************************
-   *  30 Sekunden Takt 
-   * *****************************************************************************************
-   *  
-   *  
-   *******************************************************************************************/
-   if ((millis()) >= (last_time + send_interval * 1000)) {
-        last_time = millis(); 
-
-        LCD_Page = !LCD_Page;
-        MqttSub();
-      }
-  
-  /******************************************************************************************
-   *  1 Minuten Takt 
-   * *****************************************************************************************
-   *  
-   *  
-   *******************************************************************************************/
-    if (one_minute_count <= one_minute) {
-        one_minute_count++;
-        } else {
-        one_minute_count = 0; // reset counter
-        one_hour_count++;
-                
-        USE_SERIAL.print(F("Uptime: "));
-        USE_SERIAL.print(uptime_m);
-        USE_SERIAL.println(F(" Minuten"));
-
-        // MQTT reconnect timeout
-        //Mqttpublish();
-        mqttReconnect = false;     
-        
+        /*-----------------------------------------------------------
+         * Wenn Ventil umzuschalten ist
+        */
+        if (new_valve != valve) {
+            valve = new_valve;
+            digitalWrite(VALVE_PIN, valve);
+            //sprintf(buf, "Set Valve to %s (%s)", valves[valve], reasons[reason]);
+            //USE_SERIAL.println(buf);
      }
 
-   /******************************************************************************************
-   *  1 Stunden Takt 
-   * *****************************************************************************************
-   *  
-   *  
-   *******************************************************************************************/
-     if (one_hour_count == one_hour) {
-        one_hour_count = 0; // reset counter
-                
-    // Hier die Funktionen im Stundentakt
-    // ###################################
+        if (!setmode) {
+            draw_progressbar(percent);
 
-      USE_SERIAL.println(F("ONE HOUR"));
-      } 
-      
-  }
-
-  
+      }   
+    }
+write_lcd();      
+ }
 }
    /******************************************************************************************
    *  Ende Loop
@@ -386,40 +491,11 @@ void loop()
    ******************************************************************************************/
 
 
-void MqttSub(void)
-{
-  // MQTT stuff
-  // If the MQTT connection inactively, then we try to set it and to publish/subscribe
-  if ( mqttReconnect == false )
-  {
-    if (!client.connected()) {
-        USE_SERIAL.print(F("Conn MQTT"));
-         // Connect and publish / subscribe
-        #ifdef mqttauth
-         if (client.connect("Zisterne", mqttuser, mqttpass)) {
-        #else
-         if (client.connect("Zisterne")) {
-        #endif
-            USE_SERIAL.println(F("succ"));
-            // pulish values
-            Mqttpublish();
-          } else {
-            // If weren't connected, we wait for 10 seconds and try again
-            USE_SERIAL.print(F("Failed, rc="));
-            USE_SERIAL.print(client.state());
-            USE_SERIAL.println(F(" try again every min"));
-            mqttReconnect = true;
-         }
-          // If connection is active, then sends the data to the server with the specified time interval 
-          } else {
-            Mqttpublish(); 
-          }
-    }
-}
-
 void write_lcd(void)
 {
     char LCDbuff[20];
+
+if (!setmode) {
     // Zeile 1
     lcd.setCursor(6, 0); 
     dtostrf(liter, 4, 0, LCDbuff);
@@ -432,14 +508,7 @@ void write_lcd(void)
 
               // Zeile 4
               lcd.setCursor(0, 3);
-              String uptimesum;
-              uptimesum = String(uptime_d);
-              uptimesum = String(uptimesum + "d ");
-              uptimesum = String(uptimesum + uptime_h);
-              uptimesum = String(uptimesum + "h ");
-              uptimesum = String(uptimesum + uptime_m);
-              uptimesum = String(uptimesum + "m");
-              lcd.print(uptimesum);    
+              lcd.print(uptime);
     } else {
               // Zeile 3
               lcd.setCursor(0, 2); 
@@ -452,31 +521,36 @@ void write_lcd(void)
     }
  
  }
-
-void Mqttpublish(void)
-{  
-      char buff[25];
-      dtostrf(fuel, 5, 2, buff);
-      client.publish("Zisterne/Analog", buff );
-
-      dtostrf(liter, 5, 0, buff);
-      client.publish("Zisterne/Liter", buff );
-
-      dtostrf(percent, 5, 0, buff);
-      client.publish("Zisterne/Prozent", buff );
-    
-      // System    
-      String upsum;
-      upsum = String(uptime_d);
-      upsum = String(upsum + "d ");
-      upsum = String(upsum + uptime_h);
-      upsum = String(upsum + "h ");
-      upsum = String(upsum + uptime_m);
-      upsum = String(upsum + "m");
-      upsum.toCharArray(buff, 25);
-      client.publish("Zisterne/Uptime", buff); 
 }
 
+void Mqttpublish(void) {
+    if (mqttclient.connected()) {
+        dtostrf(analog, 5, 2, buf);
+        mqttclient.publish("Zisterne/Analog", buf);
+        dtostrf(liter, 5, 0, buf);
+        mqttclient.publish("Zisterne/Liter", buf);
+        dtostrf(limit_low, 1, 0, buf);
+        mqttclient.publish("Zisterne/LiterLow", buf);
+        dtostrf(limit_high, 1, 0, buf);
+        mqttclient.publish("Zisterne/LiterHigh", buf);
+        dtostrf(percent, 5, 0, buf);
+        mqttclient.publish("Zisterne/Prozent", buf);
+        if (mode == 2) {
+            mqttclient.publish("Zisterne/Modus", "Auto");
+        } else {
+            mqttclient.publish("Zisterne/Modus", "Manuell");          
+        }
+        dtostrf(mode, 1, 0, buf);
+        mqttclient.publish("Zisterne/Mode", buf);
+        dtostrf(valve, 1, 0, buf);
+        mqttclient.publish("Zisterne/Valve", buf);
+        mqttclient.publish("Zisterne/Ventil", valves[valve]);
+        mqttclient.publish("Zisterne/Uptime", uptime);
+    } else {
+        MqttConnect(mqttuser, mqttpass);  
+    }
+}
+ 
 void draw_progressbar(byte percent) {
  
   lcd.clear(); 
