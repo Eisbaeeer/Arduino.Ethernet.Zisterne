@@ -42,6 +42,12 @@ Bitte erst ganz durchlesen!
 
 ## Changelog
 
+### 1.5
+- (20200528 ltathome)
+- Erweiterung MQTT für die Steuerung eines Relais für die Frischwasser Nachspeisung bzw. Umschaltung   
+- Grenzwerte über MQTT einstellbar   
+- Umschaltung Betriebsart über Taster Pin2 möglich   
+
 ### 1.4
 - (20200110 Eisbaeeer)   
 - Array zur Beruhigung des Messwertes hinzugfügt   
