@@ -19,7 +19,7 @@ Diese sind am Anfang des Codes.
 - MQTT Benutzername   
 - MQTT Passwort   
 - IP-Adresse des Nano (falls kein DHCP zur Verfügung steht)   
-- MAC-Adresse des Nano   
+- MAC-Adresse des Nano (W5100)  
 
 ## Verschaltung der Module
 Ich verwende Standard Module, welche über das Internet verfügbar sind. Die Klemmblöcke habe ich ausgelötet und durch Stifte erstetzt.
@@ -41,6 +41,12 @@ Bitte erst ganz durchlesen!
 
 
 ## Changelog
+
+### 1.6
+- (20221004 Eisbaeeer)
+- Portierung von Arduino IDE zu Platformio
+- Code aufgeräumt
+- Doppel Deklarationen entfernt
 
 ### 1.5
 - (20200528 ltathome)
