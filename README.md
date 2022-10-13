@@ -43,10 +43,12 @@ Bitte erst ganz durchlesen!
 ## Changelog
 
 ### 1.6
-- (20221004 Eisbaeeer)
+- (20221013 Eisbaeeer)
 - Portierung von Arduino IDE zu Platformio
 - Code aufgeräumt
 - Doppel Deklarationen entfernt
+- Verbesserung der Ethernet Initialisierung
+- Ausgabe der IP auf dem Display
 
 ### 1.5
 - (20200528 ltathome)

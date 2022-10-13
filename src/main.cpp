@@ -51,11 +51,6 @@
         - Grenzwerte über MQTT einstellbar
         - Umschaltung Betriebsart über Taster Pin2 möglich
 
-        20221004 (Eisbaeeer)
-        Version 1.6
-        - Code aufgeräumt
-        - Portierung von Arduino IDE zu Platformio
-
   Author:       Eisbaeeer, https://github.com/Eisbaeeer               
  
   Author:       Ethernet part: W.A. Smith, http://startingelectronics.com
@@ -93,21 +88,22 @@ const float max_liter = 6300;
 // Analoger Wert bei maximalem Füllstand (wird alle 30 Sekungen auf dem LCD angezeigt oder in der seriellen Konsole mit 9600 Baud.
 const int analog_max = 763;                           
 
-// Dichte der Flüssigkeit - Bei Heizöl bitte "1.086" eintragen, wenn die Kalibrierung mit Wasser erfolgt ist! 
-// Default ist 1.0 für Wasser
+// Dichte der Flüssigkeit - Bei Heizöl bitte "1.086" eintragen, aber nur wenn die Kalibrierung mit Wasser erfolgt ist! 
+// Bei Kalibrierung mit Wasser bitte "1.0" eintragen
 const float dichte = 1.0;                              
 
 // IP Adresse und Port des MQTT Servers
 IPAddress mqttserver(192, 168, 1, 200);
 const int mqttport = 1883;
-// Wenn der MQTT Server keine Authentifizierung verlangt, bitte folgende Zeile auskommentieren!
+// Wenn der MQTT Server eine Authentifizierung verlangt, bitte folgende Zeile aktivieren und Benutzer / Passwort eintragen
 #define mqttauth
 
 char *mqttuser = const_cast<char*>("MQTT ID");
 char *mqttpass = const_cast<char*>("MQTTPASS");                 
 
 // IP Adresse, falls kein DHCP vorhanden ist. Diese Adresse wird nur verwendet, wenn der DHCP-Server nicht erreichbar ist.
-IPAddress ip(192, 168, 1, 21);                          
+IPAddress ip(192, 168, 1, 203);   
+IPAddress myDns(192, 168, 1, 1);                       
 
 // MAC-Addresse bitte anpassen! Sollte auf dem Netzwerkmodul stehen. Ansonsten eine generieren.
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x0A };    
@@ -167,7 +163,7 @@ float analog = 0.0;             // Durchschnittswert
 int pointer = 0;              // Pointer für Messung
 
 // MQTT global vars
-int send_interval = 30; // MQTT Sendeintervall in Sekunden (zulässing nur von 1-59 !)
+unsigned int send_interval = 10; // the sending interval of indications to the server, by default 10 seconds
 
 boolean mqttconnected = false;
 
@@ -178,11 +174,7 @@ PubSubClient mqttclient;
 #define MQTT_ID "Zisterne"
 char pl[30];
 
-void defaultEthernet(void) {
-    Ethernet.begin(mac, ip);  // initialize Ethernet device
-}
-
-void MqttConnect(char* user, char* pass) {
+void MqttConnect(char *user, char* pass) {
 
     mqttclient.setClient(ethClient);
     mqttclient.setServer(mqttserver, mqttport);
@@ -244,9 +236,19 @@ void Uptime() {
     }
     sprintf(uptime, "%4dd %2dh %2dm", days, hours, mins);
   
-    if (secs == send_interval) { 
+    if (secs == 0) {        // Every Minute
+        //USE_SERIAL.print(F("Uptime: "));
+        //USE_SERIAL.println(uptime);
+        // MQTT reconnect timeout
+        //Mqttpublish();
+    }
+    if (secs % send_interval == 0) { // Alle 30 Sekunden
         LCD_Page = !LCD_Page;
         Mqttpublish();
+        // MqttSub();
+    }
+    if (mins == 0 && secs == 0) {      // Jede Stunde
+        //USE_SERIAL.println(F("ONE HOUR"));
     }
 }
 
@@ -291,7 +293,7 @@ void setup()
   // Print a message to the LCD
   lcd.print("Zisterne");
   lcd.setCursor(0, 1);
-  lcd.print("Version 1.5");
+  lcd.print("Version 1.6");
   lcd.setCursor(0, 3);
   lcd.print("github/Eisbaeeer");
   delay(2000);
@@ -304,18 +306,42 @@ void setup()
 
 /*--------------------------------------------------------------  
  * Ethernet init
---------------------------------------------------------------*/  
+--------------------------------------------------------------*/ 
+    lcd.clear();  
     if (Ethernet.begin(mac) == 0) {
-    // USE_SERIAL.println(F("Failed config using DHCP"));
-    // DHCP not working, switch to static IP
-    defaultEthernet();
+    //Serial.println("Failed to configure Ethernet using DHCP");
+    // Check for Ethernet hardware present
+    lcd.setCursor(0, 0);
+    lcd.print("no DHCP");
     if (Ethernet.hardwareStatus() == EthernetNoHardware) {
-      // USE_SERIAL.println(F("Eth shield not found"));
-    } else if (Ethernet.linkStatus() == LinkOFF) {
-      // USE_SERIAL.println(F("Eth cable not conn"));
+      //Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+      //lcd.setCursor(0, 0);
+      //lcd.print("no Hardware");
+      while (true) {
+        delay(1); // do nothing, no point running without Ethernet hardware
       }
     }
- 
+    if (Ethernet.linkStatus() == LinkOFF) {
+      //Serial.println("Ethernet cable is not connected.");
+      lcd.setCursor(0, 0);
+      lcd.print("no Cable");
+    }
+    // try to configure using IP address instead of DHCP:
+    Ethernet.begin(mac, ip, myDns);
+  } else {
+    //Serial.print("  DHCP assigned IP ");
+    //Serial.println(Ethernet.localIP());
+        //lcd.setCursor(0, 0);
+        //lcd.print("IP-Address");
+        lcd.setCursor(0, 0);
+        lcd.print(Ethernet.localIP());
+  }
+
+  delay(5000);
+
+     // start MQTT client
+    MqttConnect(mqttuser, mqttpass);  
+
     /*-------------------------------------------------------------------
      * Setup Pins for Valve and mode-setting
      */
